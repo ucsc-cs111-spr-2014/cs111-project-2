@@ -8,9 +8,7 @@ BASIC DESIGN OVERVIEW-----------------------------------------------------------
 
 WHAT WE HAVE DONE---------------------------------------------------------------------------
 + cam: added unsigned variable num_tix to the schedproc struct in schedprod.h to keep a count of the number of tickets each process has.
-
++ cam: defined constants DEFAULT_SCHED and LOTTERY_SCHED and surrounded code that we will change with if statements so that we can test both ways easily later on.  For right now I surrounded every call to schedule_process() with the check for which scheduler.  Im not sure if we want to keep it this way OR have schedule_process() be called either way and we will have different code for the different schedulers within there.
 
 WHAT WE SHOULD DO NEXT----------------------------------------------------------------------
-+ \#define DEFAULT_SCHED and LOTTERY_SCHED and surround code that we will change with if statements so that we can test both ways easily later on.
-
-+ create a function to hold a lottery drawing.  The function will be called after a do a do_noquantum() or do_stop_scheduling() call happens.  It will find the total number of tickets, then randomly generate an int between 0 and total tickets - 1.  It will use this number to pick the winning process(although Im not sure how right not)
++ create a function to hold a lottery drawing.  The function will be called after a do a do_noquantum() or do_stop_scheduling() call happens.  It will find the total number of tickets, then randomly generate an int between 0 and total tickets - 1.  It will use this number to pick the winning process(although Im not sure how right now)
