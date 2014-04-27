@@ -221,7 +221,7 @@ PRIVATE int schedule_process(struct schedproc * rmp)
 
 
 /*===========================================================================*
- *				start_scheduling			     *
+ *				init_scheduling			     *
  *===========================================================================*/
 
 PUBLIC void init_scheduling(void)
