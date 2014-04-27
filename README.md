@@ -11,6 +11,6 @@ WHAT WE HAVE DONE---------------------------------------------------------------
 
 
 WHAT WE SHOULD DO NEXT----------------------------------------------------------------------
-+ \#define DEFAULT_SCHED and LOTTERY_SCHED and surround code that we will change with #ifdef so that we can test both ways easily later on.
++ \#define DEFAULT_SCHED and LOTTERY_SCHED and surround code that we will change with if statements so that we can test both ways easily later on.
 
 + create a function to hold a lottery drawing.  The function will be called after a do a do_noquantum() or do_stop_scheduling() call happens.  It will find the total number of tickets, then randomly generate an int between 0 and total tickets - 1.  It will use this number to pick the winning process(although Im not sure how right not)
