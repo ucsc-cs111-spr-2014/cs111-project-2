@@ -18,11 +18,15 @@ PRIVATE timer_t sched_timer;
 PRIVATE unsigned balance_timeout;
 
 #define BALANCE_TIMEOUT	5 /* how often to balance queues in seconds */
+#define NR_TIX_DEFAULT 20
+#define LOSER_PR 15
+#define WINNER_PR 14
+#define LOTTERY_PRINT 0 
+#define DEFAULT_USER_TIME_SLICE 200
 
 FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp)	);
 FORWARD _PROTOTYPE( void balance_queues, (struct timer *tp)		);
-
-#define DEFAULT_USER_TIME_SLICE 200
+int do_lottery(void);
 
 /*===========================================================================*
  *				do_noquantum				     *
@@ -32,6 +36,8 @@ PUBLIC int do_noquantum(message *m_ptr)
 {
 	register struct schedproc *rmp;
 	int rv, proc_nr_n;
+	
+	/*printf("CMPS111 DO NO QUANTUM\n");*/	
 
 	if (sched_isokendpt(m_ptr->m_source, &proc_nr_n) != OK) {
 		printf("SCHED: WARNING: got an invalid endpoint in OOQ msg %u.\n",
@@ -40,13 +46,11 @@ PUBLIC int do_noquantum(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	if (rmp->priority < MIN_USER_Q) {
-		rmp->priority += 1; /* lower priority */
-	}
-
+	rmp->priority = LOSER_PR;
 	if ((rv = schedule_process(rmp)) != OK) {
 		return rv;
 	}
+	do_lottery();
 	return OK;
 }
 
@@ -57,6 +61,8 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 {
 	register struct schedproc *rmp;
 	int rv, proc_nr_n;
+
+	/*printf("CMPS111 DO STOP SCHEDULING\n");*/
 
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
@@ -70,7 +76,7 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 
 	rmp = &schedproc[proc_nr_n];
 	rmp->flags = 0; /*&= ~IN_USE;*/
-
+	do_lottery();
 	return OK;
 }
 
@@ -82,6 +88,8 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 	register struct schedproc *rmp;
 	int rv, proc_nr_n, parent_nr_n, nice;
 	
+	/*printf("CMPS111 DO START SCHEDULING\n");*/
+
 	/* we can handle two kinds of messages here */
 	assert(m_ptr->m_type == SCHEDULING_START || 
 		m_ptr->m_type == SCHEDULING_INHERIT);
@@ -111,18 +119,22 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 		/* We have a special case here for system processes, for which
 		 * quanum and priority are set explicitly rather than inherited 
 		 * from the parent */
+
+/*		printf("CMPS111 SCHEDULING START\n");*/
 		rmp->priority   = rmp->max_priority;
 		rmp->time_slice = (unsigned) m_ptr->SCHEDULING_QUANTUM;
+		rmp->num_tix = (unsigned) NR_TIX_DEFAULT;
 		break;
 		
 	case SCHEDULING_INHERIT:
 		/* Inherit current priority and time slice from parent. Since there
 		 * is currently only one scheduler scheduling the whole system, this
 		 * value is local and we assert that the parent endpoint is valid */
+		/*printf("CMPS111 SCHEDULING INHERIT");*/
 		if ((rv = sched_isokendpt(m_ptr->SCHEDULING_PARENT,
 				&parent_nr_n)) != OK)
 			return rv;
-
+		rmp->num_tix = schedproc[parent_nr_n].num_tix;
 		rmp->priority = schedproc[parent_nr_n].priority;
 		rmp->time_slice = schedproc[parent_nr_n].time_slice;
 		break;
@@ -170,6 +182,8 @@ PUBLIC int do_nice(message *m_ptr)
 	int proc_nr_n;
 	unsigned new_q, old_q, old_max_q;
 
+	/*printf("CMPS111 DO NICE\n");*/
+
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
 		return EPERM;
@@ -210,6 +224,9 @@ PRIVATE int schedule_process(struct schedproc * rmp)
 {
 	int rv;
 
+/*	printf("CMPS111 SCHEDULE PROCESS\n");*/
+	if(LOTTERY_PRINT)
+		printf("schedule_process endpoint:%d\n", rmp->endpoint);
 	if ((rv = sys_schedule(rmp->endpoint, rmp->priority,
 			rmp->time_slice)) != OK) {
 		printf("SCHED: An error occurred when trying to schedule %d: %d\n",
@@ -221,11 +238,13 @@ PRIVATE int schedule_process(struct schedproc * rmp)
 
 
 /*===========================================================================*
- *				init_scheduling			     *
+ *				start_scheduling			     *
  *===========================================================================*/
 
 PUBLIC void init_scheduling(void)
 {
+
+/*	printf("CMPS111 START SCHEDULING");*/
 	balance_timeout = BALANCE_TIMEOUT * sys_hz();
 	init_timer(&sched_timer);
 	set_timer(&sched_timer, balance_timeout, balance_queues, 0);
@@ -246,6 +265,8 @@ PRIVATE void balance_queues(struct timer *tp)
 	int proc_nr;
 	int rv;
 
+/*	printf("CMPS111 BALANCE QUEUES\n");*/
+
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE) {
 			if (rmp->priority > rmp->max_priority) {
@@ -256,4 +277,56 @@ PRIVATE void balance_queues(struct timer *tp)
 	}
 
 	set_timer(&sched_timer, balance_timeout, balance_queues, 0);
+}
+
+/*=============================================================================*
+ *                                do_lottery                                   *
+ *=============================================================================*/
+PUBLIC int do_lottery(void)
+{
+	struct schedproc *rmp;
+	int proc_nr;
+	int numTixTot;
+	int winner;
+	int rv;
+
+	/* sum number of tickets in each process */
+	for(proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
+		if ((rmp->flags & IN_USE) && (rmp->priority >= MAX_USER_Q) &&
+			 (rmp->priority <= MIN_USER_Q)) {
+			if (USER_Q == rmp->priority) {
+				numTixTot += rmp->num_tix;
+			}
+		}
+	}
+	
+	/* pick a winning ticket */
+	winner = rand() % numTixTot;
+	
+	/* determine owner of winning ticket */
+	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
+		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
+			if (rmp->num_tix > winner) {
+				winner -= rmp->num_tix;
+			} else { 
+				break;/* found the winner! */
+			}
+		}
+	}
+	
+	/* printing for my peace of mind that this lottery actually determines the 
+	   next process. Check the readme to see some of my output */
+	if(LOTTERY_PRINT)
+		printf("numTixTot:%d\twinner:%d\tendpt:%d\n", numTixTot, winner, rmp->endpoint);
+
+	/* schedule the lottery winner */
+	rmp->priority = WINNER_PR;
+	rmp->num_tix--;
+	rmp->time_slice = USER_QUANTUM;
+	if ((rv = schedule_process(rmp)) != OK) {
+                printf("Sched: Error while scheduling process, kernel replied %d\n", rv);
+                return rv;
+        }
+
+	return OK;
 }
