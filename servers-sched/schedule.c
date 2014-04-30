@@ -21,7 +21,7 @@ PRIVATE unsigned balance_timeout;
 #define NR_TIX_DEFAULT 20
 #define LOSER_PR 15
 #define WINNER_PR 14
-#define LOTTERY_PRINT 0 
+#define LOTTERY_PRINT 1 
 #define DEFAULT_USER_TIME_SLICE 200
 
 FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp)	);
@@ -180,9 +180,7 @@ PUBLIC int do_nice(message *m_ptr)
 	struct schedproc *rmp;
 	int rv;
 	int proc_nr_n;
-	unsigned new_q, old_q, old_max_q;
-
-	/*printf("CMPS111 DO NICE\n");*/
+	unsigned new_q, old_q, old_max_q, new_num_tix, old_num_tix;
 
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
@@ -201,8 +199,9 @@ PUBLIC int do_nice(message *m_ptr)
 	}
 
 	/* Store old values, in case we need to roll back the changes */
-	old_q     = rmp->priority;
-	old_max_q = rmp->max_priority;
+	/*old_q     = rmp->priority;
+	old_max_q = rmp->max_priority;*/
+	old_num_tix = rmp->num_tix;
 
 	/* Update the proc entry and reschedule the process */
 	rmp->max_priority = rmp->priority = new_q;
@@ -244,40 +243,41 @@ PRIVATE int schedule_process(struct schedproc * rmp)
 PUBLIC void init_scheduling(void)
 {
 
-/*	printf("CMPS111 START SCHEDULING");*/
+/*	printf("CMPS111 START SCHEDULING");
 	balance_timeout = BALANCE_TIMEOUT * sys_hz();
 	init_timer(&sched_timer);
-	set_timer(&sched_timer, balance_timeout, balance_queues, 0);
+	set_timer(&sched_timer, balance_timeout, balance_queues, 0);*/
+
 }
 
 /*===========================================================================*
  *				balance_queues				     *
  *===========================================================================*/
 
-/* This function in called every 100 ticks to rebalance the queues. The current
+/* This function is called every 100 ticks to rebalance the queues. The current
  * scheduler bumps processes down one priority when ever they run out of
  * quantum. This function will find all proccesses that have been bumped down,
  * and pulls them back up. This default policy will soon be changed.
- */
+ 
 PRIVATE void balance_queues(struct timer *tp)
 {
 	struct schedproc *rmp;
 	int proc_nr;
 	int rv;
 
-/*	printf("CMPS111 BALANCE QUEUES\n");*/
+/*	printf("CMPS111 BALANCE QUEUES\n");
 
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE) {
 			if (rmp->priority > rmp->max_priority) {
-				rmp->priority -= 1; /* increase priority */
+				rmp->priority -= 1; /* increase priority 
 				schedule_process(rmp);
 			}
 		}
 	}
 
 	set_timer(&sched_timer, balance_timeout, balance_queues, 0);
-}
+}*/
 
 /*=============================================================================*
  *                                do_lottery                                   *
