@@ -25,7 +25,7 @@ PRIVATE unsigned balance_timeout;
 #define DEFAULT_USER_TIME_SLICE 200
 
 FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp)	);
-FORWARD _PROTOTYPE( void balance_queues, (struct timer *tp)		);
+/*FORWARD _PROTOTYPE( void balance_queues, (struct timer *tp)		);*/
 int do_lottery(void);
 
 /*===========================================================================*
@@ -177,10 +177,11 @@ PUBLIC int do_start_scheduling(message *m_ptr)
  *===========================================================================*/
 PUBLIC int do_nice(message *m_ptr)
 {
-	struct schedproc *rmp;
+	struct schedproc *rmp, *loop_rmp;
 	int rv;
-	int proc_nr_n;
+	int proc_nr_n, proc_nr;
 	unsigned new_q, old_q, old_max_q, new_num_tix, old_num_tix;
+
 
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
@@ -193,10 +194,26 @@ PUBLIC int do_nice(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	new_q = (unsigned) m_ptr->SCHEDULING_MAXPRIO;
-	if (new_q >= NR_SCHED_QUEUES) {
-		return EINVAL;
-	}
+
+
+
+
+	printf("MAXPRIO:%d\n", m_ptr->SCHEDULING_MAXPRIO);
+
+
+
+	
+	/* print number of tix for each process */
+        for(proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
+                if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
+                         (loop_rmp->priority <= MIN_USER_Q)) {
+                        if (USER_Q == loop_rmp->priority) {
+                                printf("proc endpt:%d\tpri:%d\tix:%d\t\n", loop_rmp->endpoint, loop_rmp->priority, loop_rmp->num_tix);
+                        }
+                }
+        }
+	printf("DOING NICE\n");
+
 
 	/* Store old values, in case we need to roll back the changes */
 	/*old_q     = rmp->priority;
@@ -204,13 +221,12 @@ PUBLIC int do_nice(message *m_ptr)
 	old_num_tix = rmp->num_tix;
 
 	/* Update the proc entry and reschedule the process */
-	rmp->max_priority = rmp->priority = new_q;
+	rmp->num_tix = new_num_tix;
 
 	if ((rv = schedule_process(rmp)) != OK) {
 		/* Something went wrong when rescheduling the process, roll
 		 * back the changes to proc struct */
-		rmp->priority     = old_q;
-		rmp->max_priority = old_max_q;
+		rmp->num_tix = old_num_tix;
 	}
 
 	return rv;
