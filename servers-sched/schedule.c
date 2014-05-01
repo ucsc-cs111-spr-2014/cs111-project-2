@@ -197,20 +197,16 @@ PUBLIC int do_nice(message *m_ptr)
 
 	rmp = &schedproc[proc_nr_n];
 
-
-
-
 	printf("MAXPRIO:%d\n", m_ptr->SCHEDULING_MAXPRIO);
-
-
-
+	new_num_tix = rmp->num_tix + m_ptr->SCHEDULING_MAXPRIO;
 	
 	/* print number of tix for each process */
         for(proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
                 if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
                          (loop_rmp->priority <= MIN_USER_Q)) {
                         if (USER_Q == loop_rmp->priority) {
-                                printf("proc endpt:%d\tpri:%d\tix:%d\t\n", loop_rmp->endpoint, loop_rmp->priority, loop_rmp->num_tix);
+                                printf("proc endpt:%d\tpri:%d\tix:%d\t\n", 
+                                	loop_rmp->endpoint, loop_rmp->priority, loop_rmp->num_tix);
                         }
                 }
         }
