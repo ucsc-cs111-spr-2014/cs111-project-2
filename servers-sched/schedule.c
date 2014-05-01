@@ -21,7 +21,7 @@ PRIVATE unsigned balance_timeout;
 #define NR_TIX_DEFAULT 20
 #define LOSER_PR 15
 #define WINNER_PR 14
-#define LOTTERY_PRINT 1 
+#define LOTTERY_PRINT 1
 #define DEFAULT_USER_TIME_SLICE 200
 
 FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp)	);
@@ -74,7 +74,9 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 		return EBADEPT;
 	}
 
+	
 	rmp = &schedproc[proc_nr_n];
+	rmp->priority = LOSER_PR;
 	rmp->flags = 0; /*&= ~IN_USE;*/
 	do_lottery();
 	return OK;
@@ -121,7 +123,7 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 		 * from the parent */
 
 /*		printf("CMPS111 SCHEDULING START\n");*/
-		rmp->priority   = rmp->max_priority;
+		rmp->priority   = LOSER_PR;
 		rmp->time_slice = (unsigned) m_ptr->SCHEDULING_QUANTUM;
 		rmp->num_tix = (unsigned) NR_TIX_DEFAULT;
 		break;
