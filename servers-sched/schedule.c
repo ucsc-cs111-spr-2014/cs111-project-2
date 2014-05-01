@@ -201,15 +201,15 @@ PUBLIC int do_nice(message *m_ptr)
 	new_num_tix = rmp->num_tix + m_ptr->SCHEDULING_MAXPRIO;
 	
 	/* print number of tix for each process */
-        for(proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
-                if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
-                         (loop_rmp->priority <= MIN_USER_Q)) {
-                        if (USER_Q == loop_rmp->priority) {
-                                printf("proc endpt:%d\tpri:%d\tix:%d\t\n", 
-                                	loop_rmp->endpoint, loop_rmp->priority, loop_rmp->num_tix);
-                        }
-                }
-        }
+    for(proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
+            if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
+                     (loop_rmp->priority <= MIN_USER_Q)) {
+                    if (USER_Q == loop_rmp->priority) {
+                            printf("proc endpt:%d\tpri:%d\tix:%d\t\n", 
+                            	loop_rmp->endpoint, loop_rmp->priority, loop_rmp->num_tix);
+                    }
+            }
+    }
 	printf("DOING NICE\n");
 
 
@@ -320,7 +320,7 @@ PUBLIC int do_lottery(void)
 	/* determine owner of winning ticket */
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
-			if (rmp->num_tix > winner) {
+			if (rmp->num_tix < winner) {
 				winner -= rmp->num_tix;
 			} else { 
 				break;/* found the winner! */
