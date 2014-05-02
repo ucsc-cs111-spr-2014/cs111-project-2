@@ -1,0 +1,8 @@
+#!/bin/sh
+
+cc -c IOBoundProc.c
+cc -o cs_io IOBoundProc.o
+cc -c cs_cpu.c
+cc -o cs_cpu cs_cpu.o
+
+rm *.o
