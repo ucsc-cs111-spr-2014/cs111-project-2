@@ -274,12 +274,13 @@ PRIVATE int schedule_process(struct schedproc *rmp, char *tag)
 {
 	int err; 
 
-/*	printf("CMPS111 SCHEDULE PROCESS\n");*/
-	do_print_process(rmp, tag);
+	if (LOTTERY_PRINT && tag != NULL) {
+		do_print_process(rmp, tag);
+	}
 	if ((err = sys_schedule(rmp->endpoint, rmp->priority,
 			rmp->time_slice)) != OK) {
 		printf("SCHED: An error occurred when trying to schedule %d: %d\n",
-		rmp->endpoint, err);
+				rmp->endpoint, err);
 	}
 
 	return err;
@@ -325,9 +326,15 @@ PRIVATE int do_lottery(void)
 	/* sum number of tickets in each process */
 	for(proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if ((rmp->flags & IN_USE) && (rmp->priority >= MAX_USER_Q) &&
-			 (rmp->priority <= MIN_USER_Q)) {
-			if (USER_Q == rmp->priority) {
-				numTixTot += rmp->num_tix;
+				(rmp->priority <= MIN_USER_Q)) {
+			numTixTot += rmp->num_tix;
+			if (rmp->priority == WINNER_PR) {
+				rmp->priority = LOSER_PR;
+				rmp->time_slice = (unsigned) 0;
+				if ((err = schedule_process(rmp, "lose-ify-ing-winner")) != OK) {
+					printf("Sched: Error while scheduling process, kernel replied %d\n", err);
+					return err;
+				}
 			}
 		}
 	}
