@@ -24,6 +24,7 @@ EXTERN struct schedproc {
 	unsigned priority;		/* the process' current priority */
 	unsigned time_slice;		/* this process's time slice */
 	unsigned num_tix;
+	/* TODO? add unsigned max_tix*/
 } schedproc[NR_PROCS];
 
 /* Flag values */
