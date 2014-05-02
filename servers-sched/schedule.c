@@ -31,58 +31,15 @@ FORWARD _PROTOTYPE( int schedule_process, (struct schedproc * rmp, char *tag)	);
 PRIVATE int do_lottery(void);
 PRIVATE int do_changetickets(struct schedproc *rmp, int val);
 
-/*move printing and getwinner to utlity.c?*/
-PRIVATE void do_print_process(struct schedproc *temp_rmp, char* tag)
-{
-	if (!LOTTERY_PRINT) {
-		return;
-	}
-	if (!(temp_rmp->flags & IN_USE)) {
-		return;
-	}
-	printf("%s::endpt(pid?):%5d pri:%2d tix:%3d\n", 
-		tag, _ENDPOINT_P(temp_rmp->endpoint), temp_rmp->priority, temp_rmp->num_tix);
-}
-
-PRIVATE void do_print_user_queues(char *tag)
-{
-	struct schedproc *loop_rmp;
-	int proc_nr;
-
-	if (!LOTTERY_PRINT) {
-		return;
-	}
-
-	/* print number of tix for each process */
-	for (proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
-		if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
-				(loop_rmp->priority <= MIN_USER_Q)) {
-			do_print_process(loop_rmp, tag);
-		}
-	}
-}
-
-PRIVATE struct schedproc *get_winner()
-{
-	struct schedproc *rmp;
-	int proc_nr;
-
-	/*find and return process in WINNER_PR*/
-	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
-		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
-			if (rmp->priority == WINNER_PR) { 
-				do_print_process(rmp, "get_winner");
-				break;/* found the winner! */
-			}
-		}
-	}
-
-	return rmp;
-}
-
-/*===========================================================================*
- *				do_noquantum				     *
- *===========================================================================*/
+/*====================================================================================*
+##    ##  #######   #######  ##     ##    ###    ##    ## ######## ##     ## ##     ## 
+###   ## ##     ## ##     ## ##     ##   ## ##   ###   ##    ##    ##     ## ###   ### 
+####  ## ##     ## ##     ## ##     ##  ##   ##  ####  ##    ##    ##     ## #### #### 
+## ## ## ##     ## ##     ## ##     ## ##     ## ## ## ##    ##    ##     ## ## ### ## 
+##  #### ##     ## ##  ## ## ##     ## ######### ##  ####    ##    ##     ## ##     ## 
+##   ### ##     ## ##    ##  ##     ## ##     ## ##   ###    ##    ##     ## ##     ## 
+##    ##  #######   ##### ##  #######  ##     ## ##    ##    ##     #######  ##     ## 
+ *====================================================================================*/
 
 PUBLIC int do_noquantum(message *m_ptr)
 {
@@ -92,7 +49,7 @@ PUBLIC int do_noquantum(message *m_ptr)
 	/*printf("CMPS111 DO NO QUANTUM\n");*/	
 
 	if (sched_isokendpt(m_ptr->m_source, &proc_nr_n) != OK) {
-		printf("SCHED: WARNING: got an invalid endpoint in OOQ msg %u.\n",
+		printf("do_noquantum: WARNING: got an invalid endpoint in OOQ msg %u.\n",
 		m_ptr->m_source);
 		return EBADEPT;
 	}
@@ -101,7 +58,7 @@ PUBLIC int do_noquantum(message *m_ptr)
 	if (rmp->priority == WINNER_PR) {
 		rmp->num_tix -= 1;
 	} else if (rmp->priority == LOSER_PR) {
-		rmp = get_winner();
+		rmp = get_winner(LOTTERY_PRINT);
 		rmp->num_tix += 1;
 	}
 	rmp->priority = LOSER_PR;
@@ -112,23 +69,27 @@ PUBLIC int do_noquantum(message *m_ptr)
 	return OK;
 }
 
-/*===========================================================================*
- *				do_stop_scheduling			     *
- *===========================================================================*/
+/*==========================================================================================*
+ ######  ########  #######  ########           ######   ######  ##     ## ######## ########  
+##    ##    ##    ##     ## ##     ##         ##    ## ##    ## ##     ## ##       ##     ## 
+##          ##    ##     ## ##     ##         ##       ##       ##     ## ##       ##     ## 
+ ######     ##    ##     ## ########           ######  ##       ######### ######   ##     ## 
+      ##    ##    ##     ## ##                      ## ##       ##     ## ##       ##     ## 
+##    ##    ##    ##     ## ##                ##    ## ##    ## ##     ## ##       ##     ##
+ ######     ##     #######  ##        #######  ######   ######  ##     ## ######## ########  
+ *==========================================================================================*/
 PUBLIC int do_stop_scheduling(message *m_ptr)
 {
 	register struct schedproc *rmp;
 	int err, proc_nr_n;
-
-	printf("CMPS111 DO STOP SCHEDULING\n");
 
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
 		return EPERM;
 
 	if (sched_isokendpt(m_ptr->SCHEDULING_ENDPOINT, &proc_nr_n) != OK) {
-		printf("SCHED: WARNING: got an invalid endpoint in OOQ msg "
-		"%ld\n", m_ptr->SCHEDULING_ENDPOINT);
+		printf("do_stop_scheduling: WARNING: got an invalid endpoint in OOQ msg "
+				"%ld\n", m_ptr->SCHEDULING_ENDPOINT);
 		return EBADEPT;
 	}
 
@@ -141,13 +102,20 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 	return OK;
 }
 
-/*===========================================================================*
- *				do_start_scheduling			     *
- *===========================================================================*/
+/*===================================================================================================*
+ ######  ########    ###    ########  ########          ######   ######  ##     ## ######## ######## 
+##    ##    ##      ## ##   ##     ##    ##            ##    ## ##    ## ##     ## ##       ##     ##
+##          ##     ##   ##  ##     ##    ##            ##       ##       ##     ## ##       ##     ##
+ ######     ##    ##     ## ########     ##             ######  ##       ######### ######   ##     ##
+      ##    ##    ######### ##   ##      ##                  ## ##       ##     ## ##       ##     ##
+##    ##    ##    ##     ## ##    ##     ##            ##    ## ##    ## ##     ## ##       ##     ##
+ ######     ##    ##     ## ##     ##    ##    #######  ######   ######  ##     ## ######## ######## 
+ *===================================================================================================*/
 PUBLIC int do_start_scheduling(message *m_ptr)
 {
 	register struct schedproc *rmp;
 	int err, proc_nr_n, parent_nr_n, nice;
+	char *tag;
 	
 	/* we can handle two kinds of messages here */
 	assert(m_ptr->m_type == SCHEDULING_START || 
@@ -181,6 +149,7 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 			rmp->priority   = LOSER_PR;
 			rmp->time_slice = (unsigned) m_ptr->SCHEDULING_QUANTUM;
 			rmp->num_tix    = (unsigned) NR_TIX_DEFAULT;
+			tag = "SCHEDULING_START";
 			break;
 			
 		case SCHEDULING_INHERIT:
@@ -192,9 +161,10 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 				return err;
 
 			rmp->priority   = LOSER_PR;
-			/* maybe dont inherit num_tix-or-time_slice?*/
+			/* maybe dont inherit num_tix or time_slice?*/
 			rmp->num_tix    = schedproc[parent_nr_n].num_tix; 
 			rmp->time_slice = schedproc[parent_nr_n].time_slice;
+			tag = "SCHEDULING_INHERIT";
 			break;
 			
 		default: 
@@ -205,16 +175,16 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 	/* Take over scheduling the process. The kernel reply message populates
 	 * the processes current priority and its time slice */
 	if ((err = sys_schedctl(0, rmp->endpoint, 0, 0)) != OK) {
-		printf("Sched: Error taking over scheduling for %d, kernel said %d\n",
+		printf("do_start_scheduling: Error taking over scheduling for %d, kernel said %d\n",
 			rmp->endpoint, err);
 		return err;
 	}
 	rmp->flags = IN_USE;
 
 	/* Schedule the process, giving it some quantum */
-	if ((err = schedule_process(rmp, "do_start_scheduling")) != OK) {
-		printf("Sched: Error while scheduling process, kernel replied %d\n",
-			err);
+	if ((err = schedule_process(rmp, tag)) != OK) {
+		/*printf("do_start_scheduling: Error while scheduling process, kernel replied %d\n",
+			err);*/
 		return err;
 	}
 
@@ -229,9 +199,15 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 	return OK;
 }
 
-/*===========================================================================*
- *				do_nice					     *
- *===========================================================================*/
+/*=========================================================*
+########   #######          ##    ## ####  ######  ######## 
+##     ## ##     ##         ###   ##  ##  ##    ## ##       
+##     ## ##     ##         ####  ##  ##  ##       ##       
+##     ## ##     ##         ## ## ##  ##  ##       ######   
+##     ## ##     ##         ##  ####  ##  ##       ##       
+##     ## ##     ##         ##   ###  ##  ##    ## ##       
+########   #######  ####### ##    ## ####  ######  ######## 
+ *=========================================================*/
 PUBLIC int do_nice(message *m_ptr)
 {
 	struct schedproc *rmp;
@@ -243,7 +219,7 @@ PUBLIC int do_nice(message *m_ptr)
 		return EPERM;
 
 	if (sched_isokendpt(m_ptr->SCHEDULING_ENDPOINT, &proc_nr_n) != OK) {
-		printf("SCHED: WARNING: got an invalid endpoint in OOQ msg "
+		printf("do_nice: WARNING: got an invalid endpoint in OOQ msg "
 		"%ld\n", m_ptr->SCHEDULING_ENDPOINT);
 		return EBADEPT;
 	}
@@ -262,42 +238,68 @@ PUBLIC int do_nice(message *m_ptr)
 		rmp->num_tix -= m_ptr->SCHEDULING_MAXPRIO;
 		return err;
 	}
-	do_print_user_queues("do_nice");
+	do_print_user_queues("do_nice", LOTTERY_PRINT);
 
 	return OK;
 }
 
-/*===========================================================================*
- *				schedule_process			     *
- *===========================================================================*/
+/*==========================================================================================*
+ ######   ######  ##     ## ######## ########        ########  ########   #######   ######  
+##    ## ##    ## ##     ## ##       ##     ##       ##     ## ##     ## ##     ## ##    ## 
+##       ##       ##     ## ##       ##     ##       ##     ## ##     ## ##     ## ##       
+ ######  ##       ######### ######   ##     ##       ########  ########  ##     ## ##       
+      ## ##       ##     ## ##       ##     ##       ##        ##   ##   ##     ## ##       
+##    ## ##    ## ##     ## ##       ##     ##       ##        ##    ##  ##     ## ##    ## 
+ ######   ######  ##     ## ######## ########  ##### ##        ##     ##  #######   ######  
+ *==========================================================================================*/
 PRIVATE int schedule_process(struct schedproc *rmp, char *tag)
 {
-	int err; 
+	int err; char buf[50];
 
-	if (LOTTERY_PRINT && tag != NULL) {
-		do_print_process(rmp, tag);
+	if (tag != NULL) {
+		strcat(buf, "schedule_process-");
+		strcat(buf, tag);
+	} else {
+		strcat(buf, "schedule_process::");
+	}
+	if (LOTTERY_PRINT) {
+		do_print_process(rmp, buf, LOTTERY_PRINT);
 	}
 	if ((err = sys_schedule(rmp->endpoint, rmp->priority,
 			rmp->time_slice)) != OK) {
-		printf("SCHED: An error occurred when trying to schedule %d: %d\n",
-				rmp->endpoint, err);
+		printf("%s: An error occurred when trying to schedule %d: %d\n",
+				buf, rmp->endpoint, err);
 	}
 
 	return err;
 }
 
 
-/*===========================================================================*
- *				start_scheduling			     *
- *===========================================================================*/
-
+/*================================================================================*
+#### ##    ## #### ########          ######   ######  ##     ## ######## ######## 
+ ##  ###   ##  ##     ##            ##    ## ##    ## ##     ## ##       ##     ##
+ ##  ####  ##  ##     ##            ##       ##       ##     ## ##       ##     ##
+ ##  ## ## ##  ##     ##             ######  ##       ######### ######   ##     ##
+ ##  ##  ####  ##     ##                  ## ##       ##     ## ##       ##     ##
+ ##  ##   ###  ##     ##            ##    ## ##    ## ##     ## ##       ##     ##
+#### ##    ## ####    ##    #######  ######   ######  ##     ## ######## ######## 
+ *================================================================================*/
 PUBLIC void init_scheduling(void)
 {
 	NR_TICKETS = 0;
 	LOTTERY_PRINT = 0;
-	/*srand(time(NULL));*/
+	/*srand(time(NULL)); causes deadlock!?*/
 }
 
+/*======================================================================================*
+ ######  ##     ##    ###    ##    ##  ######   ########         ######## #### ##     ## 
+##    ## ##     ##   ## ##   ###   ## ##    ##  ##                  ##     ##   ##   ##  
+##       ##     ##  ##   ##  ####  ## ##        ##                  ##     ##    ## ##   
+##       ######### ##     ## ## ## ## ##   #### ######              ##     ##     ###    
+##       ##     ## ######### ##  #### ##    ##  ##                  ##     ##    ## ##   
+##    ## ##     ## ##     ## ##   ### ##    ##  ##                  ##     ##   ##   ##  
+ ######  ##     ## ##     ## ##    ##  ######   ######## #######    ##    #### ##     ## 
+ *======================================================================================*/
 PRIVATE int do_changetickets(struct schedproc *rmp, int val)
 {
 	/*TODO? add print/return for errors?*/
@@ -312,9 +314,15 @@ PRIVATE int do_changetickets(struct schedproc *rmp, int val)
 	return OK;
 }
 
-/*=============================================================================*
- *                                do_lottery                                   *
- *=============================================================================*/
+/*==========================================================================================*
+########   #######          ##        #######  ######## ######## ######## ########  ##    ## 
+##     ## ##     ##         ##       ##     ##    ##       ##    ##       ##     ##  ##  ##  
+##     ## ##     ##         ##       ##     ##    ##       ##    ##       ##     ##   ####   
+##     ## ##     ##         ##       ##     ##    ##       ##    ######   ########     ##    
+##     ## ##     ##         ##       ##     ##    ##       ##    ##       ##   ##      ##    
+##     ## ##     ##         ##       ##     ##    ##       ##    ##       ##    ##     ##    
+########   #######  ####### ########  #######     ##       ##    ######## ##     ##    ##   
+ *==========================================================================================*/
 PRIVATE int do_lottery(void)
 {
 	struct schedproc *rmp;
@@ -322,35 +330,39 @@ PRIVATE int do_lottery(void)
 	int winner;
 	int err;
 
-	int numTixTot = 0;
+	int NR_TICKETS = 0;
+
+	printf("CMPS111 do_lottery\n");
 	/* sum number of tickets in each process */
-	for(proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
-		if ((rmp->flags & IN_USE) && (rmp->priority >= MAX_USER_Q) &&
-				(rmp->priority <= MIN_USER_Q)) {
-			numTixTot += rmp->num_tix;
+	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
+		if ((rmp->flags & IN_USE) 
+				&& (rmp->priority >= MAX_USER_Q) 
+				&& (rmp->priority <= MIN_USER_Q)) {
+
+			/*do_print_process(rmp, "addin_tix", LOTTERY_PRINT);*/
+			NR_TICKETS += rmp->num_tix;
 			if (rmp->priority == WINNER_PR) {
+				printf("CMPS111 loseifying-winners\n");
 				rmp->priority = LOSER_PR;
-				rmp->time_slice = (unsigned) 0;
-				if ((err = schedule_process(rmp, "lose-ify-ing-winner")) != OK) {
-					printf("Sched: Error while scheduling process, kernel replied %d\n", err);
-					return err;
+				if ((err = schedule_process(rmp, "loseifying-winners")) != OK) {
+					printf("do_lottery: Error while scheduling process, kernel replied %d\n", err);
 				}
 			}
 		}
 	}
 	
 	/* pick a winning ticket */
-	winner = rand() % numTixTot;
-	if(LOTTERY_PRINT)
-		printf("%s::NR_TICKETS:%4d winner:%4d\n", "do_lottery", numTixTot, winner);
+	winner = rand() % NR_TICKETS;
+	if (LOTTERY_PRINT)
+		printf("%s::NR_TICKETS:%4d winner:%4d\n", "do_lottery", NR_TICKETS, winner);
 	
 	/* determine owner of winning ticket */
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
-		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
+		if (rmp->flags & IN_USE && rmp->priority == LOSER_PR && rmp->num_tix > 0) {
 			if (rmp->num_tix < winner) {
 				winner -= rmp->num_tix;
 			} else { 
-				do_print_process(rmp, "found_winner");
+				do_print_process(rmp, "found_winner", LOTTERY_PRINT);
 				break;/* found the winner! */
 			}
 		}
@@ -361,7 +373,7 @@ PRIVATE int do_lottery(void)
 	/*do_changetickets(rmp, -1);*/
 	rmp->time_slice = USER_QUANTUM;
 	if ((err = schedule_process(rmp, "do_lottery")) != OK) {
-		printf("Sched: Error while scheduling process, kernel replied %d\n", err);
+		/*printf("do_lottery: Error while scheduling process, kernel replied %d\n", err);*/
 			return err;
 	}
 

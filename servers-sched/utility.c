@@ -13,6 +13,54 @@
 #include "kernel/proc.h" /* for queue constants */
 #include "schedproc.h"
 
+PUBLIC void do_print_process(struct schedproc *temp_rmp, char* tag, int LOTTERY_PRINT)
+{
+	if (!LOTTERY_PRINT) {
+		return;
+	}
+	if (!(temp_rmp->flags & IN_USE)) {
+		return;
+	}
+	printf("%s:endpt:%5d pid?:%3d pri:%2d tix:%3d\n", 
+		tag, temp_rmp->endpoint, _ENDPOINT_P(temp_rmp->endpoint), temp_rmp->priority, temp_rmp->num_tix);
+}
+
+PUBLIC void do_print_user_queues(char *tag, int LOTTERY_PRINT)
+{
+	struct schedproc *loop_rmp;
+	int proc_nr;
+
+	if (!LOTTERY_PRINT) {
+		return;
+	}
+
+	/* print number of tix for each process */
+	for (proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
+		if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
+				(loop_rmp->priority <= MIN_USER_Q)) {
+			do_print_process(loop_rmp, tag, LOTTERY_PRINT);
+		}
+	}
+}
+
+PUBLIC struct schedproc *get_winner(int LOTTERY_PRINT)
+{
+	struct schedproc *rmp;
+	int proc_nr;
+
+	/*find and return process in WINNER_PR*/
+	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
+		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
+			if (rmp->priority == MAX_USER_Q) { 
+				do_print_process(rmp, "get_winner", LOTTERY_PRINT);
+				break;/* found the winner! */
+			}
+		}
+	}
+
+	return rmp;
+}
+
 /*===========================================================================*
  *				no_sys					     *
  *===========================================================================*/
