@@ -28,7 +28,7 @@ PUBLIC void do_print_process(struct schedproc *temp_rmp, char* tag, int DEBUG)
 	if (!(temp_rmp->flags & IN_USE)) {
 		return;
 	}
-	printf("%s:pid?:%3d endpt:%5d pri:%2d tix:%3d q:%3d s:%1d\n",
+	printf("%s: pid?:%3d endpt:%5d pri:%2d tix:%3d q:%3d s:%1d\n",
 		tag, _ENDPOINT_P(temp_rmp->endpoint), temp_rmp->endpoint,
 		temp_rmp->priority, temp_rmp->num_tix, temp_rmp->time_slice,
 		temp_rmp->IS_SYS);
