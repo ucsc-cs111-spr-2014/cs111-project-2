@@ -3,16 +3,16 @@
 int main (void)
 {
 	FILE *ifp, *ofp;
-	char *inputFilename = "test_i.txt";
-	char *outputFilename = "test_o.txt";
+	char *inputFilename = "input_io.test";
+	char *outputFilename = "output_io.test";
 	char buffer[BUFF_LEN];
 	unsigned checksum=0;
 	int i, bytesRead;
 
-	ifp = fopen("test_i.txt", "rb");
-	ofp = fopen("test_o.txt", "wb");
+	ifp = fopen(inputFilename, "rb");
+	ofp = fopen(outputFilename, "wb");
 	if (ifp == NULL) {
-  		fprintf(stderr, "Can't open input file in.list!\n");
+  		fprintf(stderr, "Can't open input file input_io.test!\n");
   		return(-1);
 	}
 
