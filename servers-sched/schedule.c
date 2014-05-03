@@ -1,5 +1,5 @@
 /* This file contains the scheduling policy for SCHED
- *
+ * CS_CPU: e:36685 p:127 
  * The entry points are:
  *   do_noquantum:        Called on behalf of process' that run out of quantum
  *   do_start_scheduling  Request to start scheduling a proc
@@ -58,13 +58,14 @@ PUBLIC int do_noquantum(message *m_ptr)
 		}
 	} else if (rmp->priority == MAX_USER_Q) {
 		rmp->priority = MIN_USER_Q;
+		rmp->time_slice = 0;
 		do_print_process(rmp, "do_noquantum", 42);
 		if ((err = schedule_process(rmp, "do_noquantum")) != OK) {
 			return err;
 		}
 	} else if (rmp->priority == MIN_USER_Q) {
 		do_lottery();
-		return;
+		return OK;
 	}
 	/*update our proctable@rmp@time_slice to 0?*/
 	return OK;
