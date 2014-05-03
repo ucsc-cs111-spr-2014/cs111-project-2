@@ -64,6 +64,9 @@ PUBLIC int main(void)
 			break;
 		case SCHEDULING_SET_NICE:
 			result = do_nice(&m_in);
+			if (result != OK) {
+				printf("SCHED: do_nice failed with %d\n", result);
+			}
 			break;
 		case SCHEDULING_NO_QUANTUM:
 			/* This message was sent from the kernel, don't reply */

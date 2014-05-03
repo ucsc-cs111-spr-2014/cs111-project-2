@@ -1,10 +1,10 @@
 /* This file contains some utility routines for SCHED.
  *
  * The entry points are:
- *   no_sys:		called for invalid system call numbers
- *   sched_isokendpt:	check the validity of an endpoint
+ *   no_sys:        called for invalid system call numbers
+ *   sched_isokendpt:   check the validity of an endpoint
  *   sched_isemtyendpt  check for validity and availability of endpoint slot
- *   accept_message	check whether message is allowed
+ *   accept_message check whether message is allowed
  */
 
 #include "sched.h"
@@ -13,25 +13,33 @@
 #include "kernel/proc.h" /* for queue constants */
 #include "schedproc.h"
 
-PUBLIC void do_print_process(struct schedproc *temp_rmp, char* tag, int LOTTERY_PRINT)
+PUBLIC void do_print(char *tag, char *string, int DEBUG) {
+	if (!DEBUG) {
+		return;
+	}
+	printf("%s:%s\n", tag, string);
+}
+
+PUBLIC void do_print_process(struct schedproc *temp_rmp, char* tag, int DEBUG)
 {
-	if (!LOTTERY_PRINT) {
+	if (!DEBUG) {
 		return;
 	}
 	if (!(temp_rmp->flags & IN_USE)) {
 		return;
 	}
-	printf("%s:pid?:%3d endpt:%5d pri:%2d tix:%3d q:%3d\n", 
-		tag, _ENDPOINT_P(temp_rmp->endpoint), temp_rmp->endpoint, 
-		temp_rmp->priority, temp_rmp->num_tix, temp_rmp->time_slice);
+	printf("%s:pid?:%3d endpt:%5d pri:%2d tix:%3d q:%3d s:%1d\n",
+		tag, _ENDPOINT_P(temp_rmp->endpoint), temp_rmp->endpoint,
+		temp_rmp->priority, temp_rmp->num_tix, temp_rmp->time_slice,
+		temp_rmp->IS_SYS);
 }
 
-PUBLIC void do_print_user_queues(char *tag, int LOTTERY_PRINT)
+PUBLIC void do_print_user_queues(char *tag, int DEBUG)
 {
 	struct schedproc *loop_rmp;
 	int proc_nr;
 
-	if (!LOTTERY_PRINT) {
+	if (!DEBUG) {
 		return;
 	}
 
@@ -39,12 +47,37 @@ PUBLIC void do_print_user_queues(char *tag, int LOTTERY_PRINT)
 	for (proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
 		if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
 				(loop_rmp->priority <= MIN_USER_Q)) {
-			do_print_process(loop_rmp, tag, LOTTERY_PRINT);
+			do_print_process(loop_rmp, tag, DEBUG);
 		}
 	}
 }
 
-PUBLIC struct schedproc *get_winner(int LOTTERY_PRINT)
+PUBLIC void do_print_queue_info(char *tag, int DEBUG) 
+{
+	struct schedproc *loop_rmp;
+	int proc_nr;
+	int winners; int losers;
+
+	if (!DEBUG) {
+		return;
+	}
+
+	/* print number of tix for each process */
+	for (proc_nr=0, loop_rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, loop_rmp++) {
+		if ((loop_rmp->flags & IN_USE) && (loop_rmp->priority >= MAX_USER_Q) &&
+				(loop_rmp->priority <= MIN_USER_Q)) {
+			if (loop_rmp->priority == MAX_USER_Q) {
+				winners++;
+			} else {
+				losers++;
+			}
+		}
+	}
+
+	printf("%s-schedproc: winners:%2d losers:%3d\n", tag, winners, losers);
+}
+
+PUBLIC struct schedproc *get_winner(int DEBUG)
 {
 	struct schedproc *rmp;
 	int proc_nr;
@@ -53,7 +86,7 @@ PUBLIC struct schedproc *get_winner(int LOTTERY_PRINT)
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
 		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
 			if (rmp->priority == MAX_USER_Q) { 
-				do_print_process(rmp, "get_winner", LOTTERY_PRINT);
+				do_print_process(rmp, "get_winner", DEBUG);
 				break;/* found the winner! */
 			}
 		}
@@ -63,7 +96,7 @@ PUBLIC struct schedproc *get_winner(int LOTTERY_PRINT)
 }
 
 /*===========================================================================*
- *				no_sys					     *
+ *              no_sys                       *
  *===========================================================================*/
 PUBLIC int no_sys(int who_e, int call_nr)
 {
@@ -74,7 +107,7 @@ PUBLIC int no_sys(int who_e, int call_nr)
 
 
 /*===========================================================================*
- *				sched_isokendpt			 	     *
+ *              sched_isokendpt                  *
  *===========================================================================*/
 PUBLIC int sched_isokendpt(int endpoint, int *proc)
 {
@@ -91,7 +124,7 @@ PUBLIC int sched_isokendpt(int endpoint, int *proc)
 }
 
 /*===========================================================================*
- *				sched_isemtyendpt		 	     *
+ *              sched_isemtyendpt                *
  *===========================================================================*/
 PUBLIC int sched_isemtyendpt(int endpoint, int *proc)
 {
@@ -106,7 +139,7 @@ PUBLIC int sched_isemtyendpt(int endpoint, int *proc)
 }
 
 /*===========================================================================*
- *				accept_message				     *
+ *              accept_message                   *
  *===========================================================================*/
 PUBLIC int accept_message(message *m_ptr)
 {

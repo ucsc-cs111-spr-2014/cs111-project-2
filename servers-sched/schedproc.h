@@ -24,8 +24,9 @@ EXTERN struct schedproc {
 	unsigned priority;		/* the process' current priority */
 	unsigned time_slice;		/* this process's time slice */
 	unsigned num_tix;
+	unsigned IS_SYS;
 	/* TODO? add unsigned max_tix*/
 } schedproc[NR_PROCS];
 
 /* Flag values */
-#define IN_USE		0x00001	/* set when 'schedproc' slot in use */
+#define IN_USE 0x00001 /* set when 'schedproc' slot in use */

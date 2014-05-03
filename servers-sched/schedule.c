@@ -12,12 +12,13 @@
 #include <assert.h>
 #include <minix/com.h>
 #include <machine/archtypes.h>
-#include "kernel/proc.h" /* for queue constants */
+#include "kernel/proc.h"
+ /* for queue constants */
 
 PRIVATE timer_t sched_timer;
 PRIVATE unsigned balance_timeout;
 
-PRIVATE int LOTTERY_PRINT;
+PRIVATE int DEBUG;
 
 #define NR_TIX_DEFAULT 20 /*todo should also be default max_tix, unless do_nice*/
 #define MIN_NR_TIX 1
@@ -51,17 +52,21 @@ PUBLIC int do_noquantum(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	/*if (rmp->priority == MAX_USER_Q) {
-		rmp->num_tix -= 1;
+	if (rmp->IS_SYS) {
+		if ((err = schedule_process(rmp, "sys_noquantum")) != OK) {
+			return err;
+		}
+	} else if (rmp->priority == MAX_USER_Q) {
+		rmp->priority = MIN_USER_Q;
+		do_print_process(rmp, "do_noquantum", 42);
+		if ((err = schedule_process(rmp, "do_noquantum")) != OK) {
+			return err;
+		}
 	} else if (rmp->priority == MIN_USER_Q) {
-		rmp = get_winner(LOTTERY_PRINT);
-		rmp->num_tix += 1;
-	}*/
-	rmp->priority = MIN_USER_Q;
-	if ((err = schedule_process(rmp, "do_noquantum")) != OK) {
-		return err;
+		do_lottery();
+		return;
 	}
-	do_lottery();
+	/*update our proctable@rmp@time_slice to 0?*/
 	return OK;
 }
 
@@ -79,7 +84,7 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 	register struct schedproc *rmp;
 	int err, proc_nr_n;
 
-	printf("%s::%s\n", "CMPS111", "do_stop_scheduling");
+	do_print("CMPS111", "do_stop_scheduling");
 
 	/* check who can send you requests */
 	if (!accept_message(m_ptr))
@@ -92,12 +97,12 @@ PUBLIC int do_stop_scheduling(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
-	rmp->priority = MIN_USER_Q;
-	rmp->num_tix -= rmp->num_tix;
-	/*TODO? rmp->time_slice = 0*/
+	do_print_process(rmp, "do_stop_scheduling", DEBUG);
 	rmp->flags &= ~IN_USE;
-	/*TODO? maybe it needs to be scheduled?*/
-	do_lottery();
+	/*if ((err = schedule_process(rmp, "do_stop_scheduling")) != OK) {
+		printf("ERROROROAROAROROR\n");
+	}*/
+	/*do lottery if rmp->priority == MAX_USER_Q?*/
 	return OK;
 }
 
@@ -143,11 +148,13 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 
 		case SCHEDULING_START:
 			/* We have a special case here for system processes, for which
-			 * quanum and priority are set explicitly rather than inherited 
+			 * quantum and priority are set explicitly rather than inherited 
 			 * from the parent */
-			rmp->priority   = MIN_USER_Q;
+			rmp->priority   = rmp->max_priority;/*TODO? try MAX_USER_Q*/
 			rmp->time_slice = (unsigned) m_ptr->SCHEDULING_QUANTUM;
-			rmp->num_tix    = (unsigned) NR_TIX_DEFAULT;
+			rmp->num_tix    = (unsigned) 0;
+			rmp->IS_SYS     = 1;
+
 			tag = "SCHEDULING_START";
 			break;
 			
@@ -159,10 +166,11 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 					&parent_nr_n)) != OK)
 				return err;
 
-			rmp->priority   = schedproc[parent_nr_n].priority;
-			/* maybe dont inherit num_tix or time_slice?*/
-			rmp->num_tix    = schedproc[parent_nr_n].num_tix; 
+			rmp->priority   = MIN_USER_Q;
 			rmp->time_slice = schedproc[parent_nr_n].time_slice;
+			rmp->num_tix    = (unsigned) NR_TIX_DEFAULT;
+			rmp->IS_SYS     = 0;
+
 			tag = "SCHEDULING_INHERIT";
 			break;
 			
@@ -171,7 +179,7 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 			assert(0);
 	}
 
-	do_print_process(rmp, tag, 1);
+	do_print_process(rmp, tag, 42);
 
 	/* Take over scheduling the process. The kernel reply message populates
 	 * the processes current priority and its time slice */
@@ -212,7 +220,7 @@ PUBLIC int do_start_scheduling(message *m_ptr)
 PUBLIC int do_nice(message *m_ptr)
 {
 	struct schedproc *rmp;
-	int err;
+	int err; int nice;
 	int proc_nr_n, proc_nr;
 
 	/* check who can send you requests */
@@ -226,9 +234,15 @@ PUBLIC int do_nice(message *m_ptr)
 	}
 
 	rmp = &schedproc[proc_nr_n];
+	nice = m_ptr->SCHEDULING_MAXPRIO;
 
-	if (m_ptr->SCHEDULING_MAXPRIO == 0) {
-		LOTTERY_PRINT = !LOTTERY_PRINT;/*for debugging*/
+	if (nice == 0) {
+		DEBUG = !DEBUG;/*for debugging*/
+		printf("DEBUG:%d\n", DEBUG);
+	} else if (nice == 1) {
+		do_print_user_queues("do_nice", 42);
+	} else if (nice = 2) {
+		do_print_queue_info("do_nice", 42);
 	}
 
 	/* Update the proc entry and reschedule the process */
@@ -239,7 +253,6 @@ PUBLIC int do_nice(message *m_ptr)
 		rmp->num_tix -= m_ptr->SCHEDULING_MAXPRIO;
 		return err;
 	}
-	do_print_user_queues("do_nice", LOTTERY_PRINT);
 
 	return OK;
 }
@@ -264,7 +277,7 @@ PRIVATE int schedule_process(struct schedproc *rmp, char *tag)
 	} else {
 		strcat(buf, "schedule::");
 	}
-	do_print_process(rmp, buf, LOTTERY_PRINT);
+	do_print_process(rmp, buf, DEBUG);
 	if ((err = sys_schedule(rmp->endpoint, rmp->priority,
 			rmp->time_slice)) != OK) {
 		printf("%s: An error occurred when trying to schedule %d: %d\n",
@@ -286,7 +299,7 @@ PRIVATE int schedule_process(struct schedproc *rmp, char *tag)
  *================================================================================*/
 PUBLIC void init_scheduling(void)
 {
-	LOTTERY_PRINT = 0;
+	DEBUG = 0;
 	/*srand(time(NULL)); causes deadlock!?*/
 }
 
@@ -338,7 +351,7 @@ PRIVATE int do_lottery(void)
 				&& (rmp->priority >= MAX_USER_Q) 
 				&& (rmp->priority <= MIN_USER_Q)) {
 			if (rmp->priority == MAX_USER_Q) {
-				do_print_process(rmp, "shouldnt-be", LOTTERY_PRINT);
+				do_print_process(rmp, "shouldnt-be", DEBUG);
 				rmp->priority+=1;*//*lower its priority*/
 				/*rmp->time_slice = (unsigned) 0;*/
 				/*if ((err = schedule_process(rmp, "loseifying")) != OK) {}
@@ -348,11 +361,11 @@ PRIVATE int do_lottery(void)
 
 	/* sum number of tickets in each process */
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
-		if ((rmp->flags & IN_USE) 
+		if ((rmp->flags & IN_USE) && (!rmp->IS_SYS) 
 				&& (rmp->priority >= MAX_USER_Q) 
 				&& (rmp->priority <= MIN_USER_Q)) {
-			if (rmp->priority > MAX_USER_Q) {/*aka: not a winner*/
-				/*do_print_process(rmp, "addin_tix", LOTTERY_PRINT);*/
+			if (rmp->priority == MIN_USER_Q) {/*aka: a loser*/
+				/*do_print_process(rmp, "addin_tix", DEBUG);*/
 				NR_TICKETS += rmp->num_tix;
 			}
 		}
@@ -360,16 +373,17 @@ PRIVATE int do_lottery(void)
 	
 	/* pick a winning ticket */
 	winner = rand() % NR_TICKETS;
-	if (1)
+	if (DEBUG)
 		printf("%s::NR_TICKETS:%4d winner:%4d\n", "do_lottery", NR_TICKETS, winner);
 	
 	/* determine owner of winning ticket */
 	for (proc_nr=0, rmp=schedproc; proc_nr < NR_PROCS; proc_nr++, rmp++) {
-		if (rmp->flags & IN_USE && rmp->num_tix > 0) {
+		if (rmp->flags & IN_USE && rmp->num_tix > 0 && (!rmp->IS_SYS)
+				&& rmp->priority == MIN_USER_Q) {
 			if (rmp->num_tix < winner) {
 				winner -= rmp->num_tix;
 			} else { 
-				do_print_process(rmp, "found_winner", LOTTERY_PRINT);
+				do_print_process(rmp, "found_winner", DEBUG);
 				break;/* found the winner! */
 			}
 		}
@@ -378,11 +392,12 @@ PRIVATE int do_lottery(void)
 	/* upgrade and schedule the lottery winner */
 	rmp->priority = MAX_USER_Q;
 	rmp->time_slice = USER_QUANTUM;
-	do_print_process(rmp, "scheduling winner", 1);
-	if ((err = schedule_process(rmp, "do_lottery")) != OK) {
+	if ((err = schedule_process(rmp, "scheduling_winner")) != OK) {
 		printf("PANIC: do_lottery scheduling failed, kernel replied %d\n", err);
 		panic("do_lottery failed, err:%s", err);
 	}
+
+	do_print_queue_info("do_lottery", 42);
 
 	return OK;
 }
